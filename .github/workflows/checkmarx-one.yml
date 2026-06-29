@@ -1,0 +1,43 @@
+name: Checkmarx One Scan
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download CX CLI
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Checkmarx/ast-cli/releases/latest/download/ast-cli_windows_x64.zip -OutFile cx.zip
+          Expand-Archive -Path cx.zip -DestinationPath . -Force
+
+      - name: Run Checkmarx Scan
+        run: |
+          .\cx.exe scan create `
+            --report-format sarif `
+            --output-path . `
+            --base-uri https://eu.ast.checkmarx.net `
+            --tenant cx_seg `
+            --apikey ${{ secrets.CX_API_KEY }} `
+            --project-name "${{ github.repository }}" `
+            -s .
+
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cx_result.sarif
+          path: cx_result.sarif
+
+      - name: Upload Checkmarx SARIF to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: cx_result.sarif
